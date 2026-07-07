@@ -1,0 +1,155 @@
+CREATE SCHEMA society_db;
+SET search_path TO society_db;
+CREATE TABLE Society(
+    sid INT PRIMARY KEY,
+    name VARCHAR(100),
+    street VARCHAR(100),
+    city VARCHAR(50),
+    pin VARCHAR(10)
+);
+CREATE TABLE Building(
+    bid INT PRIMARY KEY,
+    name VARCHAR(100),
+    nooffloors INT,
+    sid INT REFERENCES Society(sid)
+);
+CREATE TABLE Notice(
+    nid INT PRIMARY KEY,
+    title VARCHAR(100),
+    date DATE,
+    description TEXT,
+    sid INT REFERENCES Society(sid)
+);
+CREATE TABLE Flat(
+    fid INT PRIMARY KEY,
+    fno VARCHAR(10),
+    size VARCHAR(20),
+    bid INT,
+    ownerid INT NOT NULL
+);
+CREATE TABLE Person(
+    pid INT PRIMARY KEY,
+    name VARCHAR(100),
+    occupation VARCHAR(50),
+    category VARCHAR(50),
+    residenceid INT
+);
+ALTER TABLE Flat
+ADD CONSTRAINT fk_owner
+FOREIGN KEY (ownerid) REFERENCES Person(pid);
+ALTER TABLE Person
+ADD CONSTRAINT fk_residence
+FOREIGN KEY (residenceid) REFERENCES Flat(fid);
+CREATE TABLE Branch(
+    ifsc VARCHAR(20) PRIMARY KEY,
+    bankname VARCHAR(100),
+    branchname VARCHAR(100)
+);
+CREATE TABLE Account(
+    accno VARCHAR(30) PRIMARY KEY,
+    ifsc VARCHAR(20) REFERENCES Branch(ifsc),
+    pid INT REFERENCES Person(pid)
+);
+CREATE TABLE PersonContact(
+    pid INT REFERENCES Person(pid),
+    contactno VARCHAR(15),
+    PRIMARY KEY(pid, contactno)
+);
+CREATE TABLE PersonEmail(
+    pid INT REFERENCES Person(pid),
+    email VARCHAR(100),
+    PRIMARY KEY(pid, email)
+);
+CREATE TABLE Complaint(
+    cid INT PRIMARY KEY,
+    description TEXT,
+    date DATE,
+    status VARCHAR(20),
+    resolvedate DATE,
+    pid INT REFERENCES Person(pid),
+    sid INT REFERENCES Society(sid)
+);
+CREATE TABLE Visit(
+    pid INT REFERENCES Person(pid),
+    fid INT REFERENCES Flat(fid),
+    entrydatetime TIMESTAMP,
+    exitdatetime TIMESTAMP,
+    PRIMARY KEY(pid, fid, entrydatetime)
+);
+CREATE TABLE Maintenance(
+    fid INT REFERENCES Flat(fid),
+    month VARCHAR(10),
+    amount NUMERIC(10,2),
+    status VARCHAR(20),
+    paymentdate DATE,
+    paymentmethod VARCHAR(30),
+    PRIMARY KEY(fid, month)
+);
+CREATE TABLE ParkingSlot(
+    slotid INT PRIMARY KEY,
+    slotno VARCHAR(10),
+    location VARCHAR(50),
+    fid INT REFERENCES Flat(fid)
+);
+CREATE TABLE Vehicle(
+    vid INT PRIMARY KEY,
+    type VARCHAR(30),
+    model VARCHAR(50),
+    colour VARCHAR(30),
+    ownerid INT REFERENCES Person(pid) NOT NULL,
+    slotid INT REFERENCES ParkingSlot(slotid)
+);
+CREATE TABLE WorkOrder(
+    workerid INT REFERENCES Person(pid),
+    residentid INT REFERENCES Person(pid),
+    workdate DATE,
+    type VARCHAR(50),
+    cost NUMERIC(10,2),
+    rating INT,
+    PRIMARY KEY(workerid, residentid, workdate)
+);
+CREATE TABLE Rental(
+    ownerid INT REFERENCES Person(pid),
+    tenantid INT REFERENCES Person(pid),
+    fid INT REFERENCES Flat(fid),
+    startdate DATE,
+    enddate DATE,
+    depositamount NUMERIC(10,2),
+    rentamount NUMERIC(10,2),
+    PRIMARY KEY(ownerid, tenantid, fid, startdate)
+);
+CREATE TABLE Amenity(
+    aid INT PRIMARY KEY,
+    name VARCHAR(100),
+    location VARCHAR(50),
+    capacity INT,
+    sid INT REFERENCES Society(sid) NOT NULL
+);
+CREATE TABLE AmenityBooking(
+    aid INT REFERENCES Amenity(aid),
+    pid INT REFERENCES Person(pid),
+    bookingdate DATE,
+    startdatetime TIMESTAMP,
+    enddatetime TIMESTAMP,
+    paymentmethod VARCHAR(30),
+    paymentstatus VARCHAR(20),
+    fee NUMERIC(10,2),
+    PRIMARY KEY(aid, pid, bookingdate, startdatetime)
+);
+CREATE TABLE Manages(
+    sid INT REFERENCES Society(sid),
+    pid INT REFERENCES Person(pid),
+    tenurestartdate DATE,
+    tenureenddate DATE,
+    role VARCHAR(50),
+    PRIMARY KEY(sid, pid, tenurestartdate)
+);
+CREATE TABLE Guards(
+    pid INT REFERENCES Person(pid),
+    bid INT REFERENCES Building(bid),
+    startdate DATE,
+    enddate DATE,
+    shift VARCHAR(20),
+    salary NUMERIC(10,2),
+    PRIMARY KEY(pid, bid, startdate)
+);

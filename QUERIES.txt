@@ -1,0 +1,613 @@
+-- Q1. List all flats with owner name, building name, and society name
+SELECT
+    s.name        AS society,
+    b.name        AS building,
+    f.fno         AS flat_no,
+    f.size,
+    p.name        AS owner_name
+FROM Flat f
+JOIN Building b ON f.bid     = b.bid
+JOIN Society  s ON b.sid     = s.sid
+JOIN Person   p ON f.ownerid = p.pid
+ORDER BY s.name, b.name, f.fno;
+
+-- Q2. Show all unpaid maintenance dues flat-wise with owner name
+SELECT
+    f.fno          AS flat_no,
+    p.name         AS owner_name,
+    m.month,
+    m.amount       AS due_amount
+FROM Maintenance m
+JOIN Flat   f ON m.fid     = f.fid
+JOIN Person p ON f.ownerid = p.pid
+WHERE m.status = 'Unpaid'
+ORDER BY f.fno, m.month;
+
+-- Q3. Show total maintenance collected and outstanding per society per month(gives rupee   amounts (collected vs outstanding))
+SELECT
+    s.name                                                          AS society,
+    m.month,
+    SUM(CASE WHEN m.status = 'Paid'   THEN m.amount ELSE 0 END)    AS total_collected,
+    SUM(CASE WHEN m.status = 'Unpaid' THEN m.amount ELSE 0 END)    AS total_outstanding
+FROM Maintenance m
+JOIN Flat     f ON m.fid = f.fid
+JOIN Building b ON f.bid = b.bid
+JOIN Society  s ON b.sid = s.sid
+GROUP BY s.sid, m.month
+ORDER BY s.name, m.month;
+
+-- Q4. List all open complaints with resident name, society, and number of days since complaint was raised
+SELECT
+    p.name                       AS resident_name,
+    s.name                       AS society,
+    c.description,
+    c.date                       AS raised_on,
+    (CURRENT_DATE - c.date)      AS days_open
+FROM Complaint c
+JOIN Person  p ON c.pid = p.pid
+JOIN Society s ON c.sid = s.sid
+WHERE c.status = 'Open'
+ORDER BY days_open DESC;
+
+-- Q5. Show complaint resolution summary per society with total complaints, resolved count, open count, and average resolution days
+SELECT
+    s.name                                                              AS society,
+    COUNT(c.cid)                                                        AS total_complaints,
+    SUM(CASE WHEN c.status = 'Resolved' THEN 1 ELSE 0 END)             AS resolved,
+    SUM(CASE WHEN c.status = 'Open'     THEN 1 ELSE 0 END)             AS open,
+    ROUND(AVG(CASE WHEN c.resolvedate IS NOT NULL
+                   THEN (c.resolvedate - c.date) END), 1)               AS avg_resolution_days
+FROM Complaint c
+JOIN Society s ON c.sid = s.sid
+GROUP BY s.sid
+ORDER BY total_complaints DESC;
+
+-- Q6. Show worker performance report with total jobs done, average rating, and total earnings
+SELECT
+    p.name                        AS worker_name,
+    p.occupation                  AS skill,
+    COUNT(*)                      AS total_jobs,
+    ROUND(AVG(w.rating), 2)       AS avg_rating,
+    SUM(w.cost)                   AS total_earnings
+FROM WorkOrder w
+JOIN Person p ON w.workerid = p.pid
+GROUP BY p.pid, p.occupation
+ORDER BY avg_rating DESC, total_jobs DESC;
+
+-- Q7. List all work orders with rating 3 or below along with worker name and resident name
+SELECT
+    w.workdate,
+    worker.name    AS worker_name,
+    worker.occupation,
+    resident.name  AS resident_name,
+    w.type         AS work_type,
+    w.cost,
+    w.rating
+FROM WorkOrder w
+JOIN Person worker   ON w.workerid   = worker.pid
+JOIN Person resident ON w.residentid = resident.pid
+WHERE w.rating <= 3
+ORDER BY w.rating, w.workdate DESC;
+
+-- Q8. Show all active rental agreements with owner name, tenant name, flat number, rent amount, and end date
+SELECT
+    owner.name        AS owner_name,
+    tenant.name       AS tenant_name,
+    f.fno             AS flat_no,
+    b.name            AS building,
+    s.name            AS society,
+    r.startdate,
+    r.enddate,
+    r.rentamount,
+    r.depositamount
+FROM Rental r
+JOIN Person owner  ON r.ownerid  = owner.pid
+JOIN Person tenant ON r.tenantid = tenant.pid
+JOIN Flat   f      ON r.fid      = f.fid
+JOIN Building b    ON f.bid      = b.bid
+JOIN Society  s    ON b.sid      = s.sid
+WHERE r.enddate >= CURRENT_DATE
+ORDER BY r.enddate;
+
+-- Q9. List all amenity bookings with resident name, amenity name, booking date, fee, and payment status
+SELECT
+    p.name           AS resident_name,
+    a.name           AS amenity,
+    ab.bookingdate,
+    ab.startdatetime,
+    ab.enddatetime,
+    ab.fee,
+    ab.paymentmethod,
+    ab.paymentstatus
+FROM AmenityBooking ab
+JOIN Person  p ON ab.pid = p.pid
+JOIN Amenity a ON ab.aid = a.aid
+ORDER BY ab.bookingdate DESC;
+
+-- Q10. Show amenity-wise total bookings and total revenue collected per society
+SELECT
+    s.name          AS society,
+    a.name          AS amenity,
+    COUNT(*)        AS total_bookings,
+    SUM(ab.fee)     AS total_revenue
+FROM AmenityBooking ab
+JOIN Amenity a ON ab.aid = a.aid
+JOIN Society s ON a.sid  = s.sid
+WHERE ab.paymentstatus = 'Paid'
+GROUP BY s.name, a.name
+ORDER BY total_revenue DESC;
+
+-- Q11. List all vehicles registered in the society with owner name, vehicle details, and assigned parking slot
+SELECT
+    p.name        AS owner_name,
+    f.fno         AS flat_no,
+    v.type        AS vehicle_type,
+    v.model,  
+    v.colour,  
+    ps.slotno     AS parking_slot,
+    ps.location   AS slot_location
+FROM Vehicle v
+JOIN Person p ON v.ownerid = p.pid
+LEFT JOIN ParkingSlot ps ON v.slotid = ps.slotid
+LEFT JOIN Flat f ON p.residenceid = f.fid
+ORDER BY p.name;
+
+-- Q12. Show visitor log with visitor name, flat visited, entry time, exit time, and current status
+SELECT
+    vis.name         AS visitor_name,
+    f.fno            AS visited_flat,
+    b.name           AS building,
+    v.entrydatetime,
+    v.exitdatetime,
+    CASE WHEN v.exitdatetime IS NULL
+         THEN 'Still Inside'
+         ELSE 'Left'
+    END              AS status
+FROM Visit v
+JOIN Person   vis ON v.pid = vis.pid
+JOIN Flat     f   ON v.fid = f.fid
+JOIN Building b   ON f.bid = b.bid
+ORDER BY v.entrydatetime DESC;
+
+-- Q13. List all current committee members with their role, society, and tenure period
+SELECT
+    s.name              AS society,
+    p.name              AS member_name,
+    m.role,
+    m.tenurestartdate   AS from_date,
+    m.tenureenddate     AS to_date
+FROM Manages m
+JOIN Society s ON m.sid = s.sid
+JOIN Person  p ON m.pid = p.pid
+WHERE m.tenurestartdate <= CURRENT_DATE
+  AND (m.tenureenddate IS NULL OR m.tenureenddate >= CURRENT_DATE)
+ORDER BY s.name, m.role;
+ 
+ 
+-- Q14. Show guard assignment details with guard name, building, shift, salary, and active status
+SELECT
+    p.name       AS guard_name,
+    b.name       AS building,
+    s.name       AS society,
+    g.shift,
+    g.startdate,
+    g.salary,
+    CASE WHEN g.enddate IS NULL OR g.enddate >= CURRENT_DATE
+         THEN 'Active'
+         ELSE 'Inactive'
+    END          AS status
+FROM Guards g
+JOIN Person   p ON g.pid = p.pid
+JOIN Building b ON g.bid = b.bid
+JOIN Society  s ON b.sid = s.sid
+ORDER BY status, b.name, g.shift;
+ 
+ 
+-- Q15. List all residents with their bank account number and bank branch details
+SELECT
+    p.name          AS resident_name,
+    p.category,
+    f.fno           AS flat_no,
+    a.accno         AS account_number,
+    br.bankname,
+    br.branchname
+FROM Person p
+JOIN Flat     f  ON p.residenceid = f.fid
+JOIN Account  a  ON a.pid         = p.pid
+JOIN Branch   br ON a.ifsc        = br.ifsc
+WHERE p.category IN ('Owner', 'Tenant')
+ORDER BY p.name;
+ 
+ 
+-- Q16. Show all notices posted per society with title, date, and number of days since posted
+SELECT
+    s.name                  AS society,
+    n.title,
+    n.date                  AS posted_on,
+    (CURRENT_DATE - n.date) AS days_ago,
+    n.description
+FROM Notice n
+JOIN Society s ON n.sid = s.sid
+ORDER BY s.name, n.date DESC;
+ 
+ 
+-- Q17. Show flat-wise maintenance payment history with payment method and payment date
+SELECT
+    f.fno             AS flat_no,
+    p.name            AS owner_name,
+    m.month,
+    m.amount,
+    m.status,
+    m.paymentmethod,
+    m.paymentdate
+FROM Maintenance m
+JOIN Flat   f ON m.fid     = f.fid
+JOIN Person p ON f.ownerid = p.pid
+ORDER BY f.fno, m.month;
+ 
+ 
+-- Q18. List owners who have rented out a flat and also self-occupy another flat in the same society
+SELECT DISTINCT
+    p.name          AS owner_name,
+    self_f.fno      AS self_occupied_flat,
+    rent_f.fno      AS rented_out_flat,
+    tenant.name     AS tenant_name,
+    r.rentamount
+FROM Person p
+JOIN Flat self_f   ON self_f.ownerid = p.pid
+                  AND self_f.fid      = p.residenceid
+JOIN Rental r      ON r.ownerid = p.pid
+                  AND r.enddate >= CURRENT_DATE
+JOIN Flat rent_f   ON r.fid     = rent_f.fid
+JOIN Person tenant ON r.tenantid = tenant.pid
+ORDER BY p.name;
+
+
+-- Q19. Monthly maintenance collection rate per society as in percentage of paid vs unpaid     (gives flat counts and a collection rate percentage)
+SELECT
+    s.name                                          AS society,
+    m.month,
+    COUNT(*)                                        AS total_flats,
+    SUM(CASE WHEN m.status = 'Paid' THEN 1 ELSE 0 END)   AS paid_count,
+    SUM(CASE WHEN m.status = 'Unpaid' THEN 1 ELSE 0 END) AS unpaid_count,
+    ROUND(100.0 * SUM(CASE WHEN m.status = 'Paid' THEN 1 ELSE 0 END) / COUNT(*), 2) AS collection_rate
+FROM Maintenance m
+JOIN Flat     f ON m.fid = f.fid
+JOIN Building b ON f.bid = b.bid
+JOIN Society  s ON b.sid = s.sid
+GROUP BY s.sid, m.month
+ORDER BY s.name, m.month DESC;
+
+
+-- Q20. Identify flats with highest maintenance dues (top 10)
+SELECT
+    f.fno                      AS flat_no,
+    b.name                     AS building,
+    s.name                     AS society,
+    p.name                     AS owner_name,
+    SUM(m.amount)              AS total_dues,
+    COUNT(*)                   AS months_unpaid
+FROM Maintenance m
+JOIN Flat     f ON m.fid = f.fid
+JOIN Building b ON f.bid = b.bid
+JOIN Society  s ON b.sid = s.sid
+JOIN Person   p ON f.ownerid = p.pid
+WHERE m.status = 'Unpaid'
+GROUP BY f.fid, f.fno, b.name, s.name, p.name
+ORDER BY total_dues DESC
+LIMIT 10;
+
+
+-- Q21. Workers with zero ratings or no completed jobs (performance audit)
+SELECT
+    p.pid,
+    p.name                     AS worker_name,
+    p.occupation               AS skill,
+    COUNT(w.workdate)          AS total_jobs,
+    COUNT(CASE WHEN w.rating IS NOT NULL THEN 1 END) AS rated_jobs,
+    ROUND(AVG(w.rating), 2)    AS avg_rating
+FROM Person p
+LEFT JOIN WorkOrder w ON p.pid = w.workerid
+WHERE p.occupation IS NOT NULL
+GROUP BY p.pid, p.name, p.occupation
+HAVING COUNT(w.workdate) = 0 OR AVG(w.rating) IS NULL OR AVG(w.rating) < 2
+ORDER BY total_jobs, avg_rating;
+
+
+-- Q22. Show flats currently vacant (no active rental and no resident)
+SELECT
+    f.fid,
+    f.fno                      AS flat_no,
+    b.name                     AS building,
+    s.name                     AS society,
+    f.size,
+    p.name                     AS owner_name,
+    (SELECT STRING_AGG(contactno, ', ')
+    FROM PersonContact pc WHERE pc.pid = p.pid) AS owner_contact
+FROM Flat f
+JOIN Building b ON f.bid = b.bid
+JOIN Society  s ON b.sid = s.sid
+JOIN Person   p ON f.ownerid = p.pid
+LEFT JOIN Rental r ON f.fid = r.fid 
+                  AND r.enddate >= CURRENT_DATE
+LEFT JOIN Person resident ON f.fid = resident.residenceid
+WHERE r.fid IS NULL 
+  AND resident.pid IS NULL
+ORDER BY s.name, b.name, f.fno;
+
+-- Q23. Complaint resolution SLA report (average days to resolve per category)
+SELECT
+    s.name                     AS society,
+    c.description              AS complaint_category,
+    COUNT(*)                   AS total_complaints,
+    SUM(CASE WHEN c.status = 'Resolved' THEN 1 ELSE 0 END)  AS resolved_count,
+    ROUND(AVG(CASE WHEN c.resolvedate IS NOT NULL 
+                   THEN (c.resolvedate - c.date) END), 1)   AS avg_resolution_days,
+    MAX(c.date - c.resolvedate)                             AS max_days_taken
+FROM Complaint c
+JOIN Society s ON c.sid = s.sid
+WHERE c.resolvedate IS NOT NULL
+GROUP BY s.sid, c.description
+ORDER BY avg_resolution_days DESC;
+
+
+-- Q24. Tenants who are also owners in the same society
+SELECT DISTINCT
+    p.name                     AS person_name,
+    owner_flat.fno             AS owned_flat,
+    tenant_flat.fno            AS rented_flat,
+    s.name                     AS society
+FROM Person p
+JOIN Flat owner_flat ON p.pid = owner_flat.ownerid
+JOIN Flat tenant_flat ON p.residenceid = tenant_flat.fid
+JOIN Building b ON owner_flat.bid = b.bid
+JOIN Society s ON b.sid = s.sid
+WHERE owner_flat.fid != tenant_flat.fid
+ORDER BY s.name, p.name;
+
+
+-- Q25. Amenity utilization rate (bookings per capacity per month)
+SELECT
+    s.name                     AS society,
+    a.name                     AS amenity,
+    a.capacity,
+    COUNT(ab.aid)              AS total_bookings,
+    ROUND(100.0 * COUNT(ab.aid) / 30, 2) AS utilization_rate_percent,
+    SUM(ab.fee)                AS total_revenue
+FROM Amenity a
+LEFT JOIN AmenityBooking ab ON a.aid = ab.aid
+                           AND EXTRACT(MONTH FROM ab.bookingdate) = EXTRACT(MONTH FROM CURRENT_DATE)
+                           AND EXTRACT(YEAR FROM ab.bookingdate) = EXTRACT(YEAR FROM CURRENT_DATE)
+JOIN Society s ON a.sid = s.sid
+GROUP BY s.sid, a.aid, a.name, a.capacity
+ORDER BY utilization_rate_percent DESC;
+
+
+-- Q26. Parking slot occupancy report (occupied vs vacant per building)
+SELECT
+    s.name                     AS society,
+    b.name                     AS building,
+    COUNT(ps.slotid)           AS total_slots,
+    COUNT(v.vid)               AS occupied_slots,
+    (COUNT(ps.slotid) - COUNT(v.vid)) AS vacant_slots,
+    ROUND(100.0 * COUNT(v.vid) / COUNT(ps.slotid), 2) AS occupancy_rate
+FROM ParkingSlot ps
+JOIN Flat f ON ps.fid = f.fid
+JOIN Building b ON f.bid = b.bid
+JOIN Society s ON b.sid = s.sid
+LEFT JOIN Vehicle v ON ps.slotid = v.slotid
+GROUP BY s.sid, b.bid
+ORDER BY occupancy_rate DESC;
+
+
+-- Q27. Current visitors inside the society (entry without exit)
+SELECT
+    vis.name                   AS visitor_name,
+    f.fno                      AS flat_no,
+    b.name                     AS building,
+    s.name                     AS society,
+    v.entrydatetime,
+    ROUND(CAST(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - v.entrydatetime))/3600 AS numeric),    2) AS hours_inside
+FROM Visit v
+JOIN Person vis ON v.pid = vis.pid
+JOIN Flat f ON v.fid = f.fid
+JOIN Building b ON f.bid = b.bid
+JOIN Society s ON b.sid = s.sid
+WHERE v.exitdatetime IS NULL
+ORDER BY v.entrydatetime;
+
+-- Q28. Guard shift coverage analysis (gaps in coverage per building)
+SELECT
+    s.name                     AS society,
+    b.name                     AS building,
+    COUNT(DISTINCT g.pid)      AS total_guards,
+    STRING_AGG(DISTINCT g.shift, ', ') AS shifts_covered,
+    COUNT(CASE WHEN g.enddate IS NULL OR g.enddate >= CURRENT_DATE THEN 1 END) AS active_guards
+FROM Guards g
+JOIN Building b ON g.bid = b.bid
+JOIN Society s ON b.sid = s.sid
+GROUP BY s.sid, b.bid, b.name
+ORDER BY s.name, b.name;
+
+
+-- Q29. Rental income analysis per owner (total rent collected and pending)
+SELECT
+    p.name                     AS owner_name,
+    COUNT(DISTINCT r.fid)      AS total_properties_rented,
+    SUM(r.rentamount)          AS monthly_rent_potential,
+    COUNT(CASE WHEN r.enddate >= CURRENT_DATE THEN 1 END) AS active_rentals,
+    COUNT(CASE WHEN r.enddate < CURRENT_DATE THEN 1 END) AS expired_rentals
+FROM Rental r
+JOIN Person p ON r.ownerid = p.pid
+WHERE r.startdate <= CURRENT_DATE
+GROUP BY p.pid, p.name
+ORDER BY monthly_rent_potential DESC;
+
+
+-- Q30. Committee member tenure history (past and current)
+SELECT
+    s.name                     AS society,
+    p.name                     AS member_name,
+    m.role,
+    m.tenurestartdate,
+    m.tenureenddate,
+    CASE WHEN m.tenureenddate IS NULL THEN 'Current'
+         WHEN m.tenureenddate >= CURRENT_DATE THEN 'Current'
+         ELSE 'Past'
+    END                        AS status,
+    CASE WHEN m.tenureenddate IS NOT NULL 
+         THEN (m.tenureenddate - m.tenurestartdate)
+         ELSE (CURRENT_DATE - m.tenurestartdate)
+    END                        AS tenure_days
+FROM Manages m
+JOIN Society s ON m.sid = s.sid
+JOIN Person p ON m.pid = p.pid
+ORDER BY s.name, m.role, m.tenurestartdate DESC;
+
+
+-- Q31. Residents with multiple vehicles registered
+SELECT p.name AS resident_name, f.fno AS flat_no,
+  b.name AS building, s.name AS society,
+  COUNT(v.vid) AS vehicle_count,
+  STRING_AGG(v.type || ' ' || v.model, ', ') AS vehicles
+FROM Vehicle v
+JOIN Person p ON v.ownerid = p.pid
+JOIN Flat f ON p.residenceid = f.fid
+JOIN Building b ON f.bid = b.bid
+JOIN Society s ON b.sid = s.sid
+GROUP BY p.pid, p.name, f.fno, b.name, s.name
+HAVING COUNT(v.vid) > 1
+ORDER BY vehicle_count DESC;
+
+
+-- Q32. Most frequently visited flats (top 10)
+SELECT f.fno AS flat_no, b.name AS building, s.name AS society,
+  p.name AS owner_name,
+  COUNT(vi.pid) AS total_visits,
+  COUNT(CASE WHEN vi.exitdatetime IS NULL THEN 1 END) AS currently_inside
+FROM Visit vi
+JOIN Flat f ON vi.fid = f.fid
+JOIN Building b ON f.bid = b.bid
+JOIN Society s ON b.sid = s.sid
+JOIN Person p ON f.ownerid = p.pid
+GROUP BY f.fid, f.fno, b.name, s.name, p.name
+ORDER BY total_visits DESC
+LIMIT 10;
+
+
+-- Q33. Work order breakdown by type (cost and rating analysis)
+SELECT w.type AS work_type,
+  COUNT(*) AS total_orders,
+  ROUND(AVG(w.cost), 2) AS avg_cost,
+  SUM(w.cost) AS total_spent,
+  ROUND(AVG(w.rating), 2) AS avg_rating,
+  COUNT(CASE WHEN w.rating <= 2 THEN 1 END) AS poor_rating_count
+FROM WorkOrder w
+GROUP BY w.type
+ORDER BY total_spent DESC;
+
+
+-- Q34. Residents with no complaints filed (trouble-free residents)
+SELECT p.name AS resident_name, p.category,
+  f.fno AS flat_no, s.name AS society
+FROM Person p
+JOIN Flat f ON p.residenceid = f.fid
+JOIN Building b ON f.bid = b.bid
+JOIN Society s ON b.sid = s.sid
+WHERE p.category IN ('Owner', 'Tenant')
+  AND p.pid NOT IN (SELECT pid FROM Complaint)
+ORDER BY s.name, p.name;
+
+
+-- Q35. Buildings with no active guard assigned
+SELECT b.bid, b.name AS building, s.name AS society
+FROM Building b
+JOIN Society s ON b.sid = s.sid
+WHERE b.bid NOT IN (
+  SELECT bid FROM Guards
+  WHERE (enddate IS NULL OR enddate >= CURRENT_DATE)
+)
+ORDER BY s.name, b.name;
+
+
+-- Q36. Top 10 residents by total amenity spending
+SELECT p.name AS resident_name, f.fno AS flat_no,
+  s.name AS society,
+  COUNT(ab.aid) AS total_bookings,
+  SUM(ab.fee) AS total_spent,
+  ROUND(AVG(ab.fee), 2) AS avg_fee_per_booking
+FROM AmenityBooking ab
+JOIN Person p ON ab.pid = p.pid
+JOIN Flat f ON p.residenceid = f.fid
+JOIN Building b ON f.bid = b.bid
+JOIN Society s ON b.sid = s.sid
+WHERE ab.paymentstatus = 'Paid'
+GROUP BY p.pid, p.name, f.fno, s.name
+ORDER BY total_spent DESC
+LIMIT 10;
+
+
+-- Q37. Persons with missing contact information
+SELECT p.pid, p.name, p.category,
+  f.fno AS flat_no, s.name AS society,
+  CASE WHEN pc.pid IS NULL THEN 'No phone' ELSE 'Has phone' END AS phone_status,
+  CASE WHEN pe.pid IS NULL THEN 'No email' ELSE 'Has email' END AS email_status
+FROM Person p
+LEFT JOIN Flat f ON p.residenceid = f.fid
+LEFT JOIN Building b ON f.bid = b.bid
+LEFT JOIN Society s ON b.sid = s.sid
+LEFT JOIN (SELECT DISTINCT pid FROM PersonContact) pc ON p.pid = pc.pid
+LEFT JOIN (SELECT DISTINCT pid FROM PersonEmail) pe ON p.pid = pe.pid
+WHERE pc.pid IS NULL OR pe.pid IS NULL
+ORDER BY s.name, p.name;
+
+
+-- Q38. Society-level dashboard summary
+SELECT s.name AS society,
+  COUNT(DISTINCT b.bid) AS buildings,
+  COUNT(DISTINCT f.fid) AS total_flats,
+  COUNT(DISTINCT res.pid) AS total_residents,
+  COUNT(DISTINCT CASE WHEN c.status = 'Open' THEN c.cid END) AS open_complaints,
+  COUNT(DISTINCT CASE WHEN m.status = 'Unpaid' THEN m.fid || m.month END) AS unpaid_dues,
+  COUNT(DISTINCT CASE WHEN r.enddate >= CURRENT_DATE THEN r.fid END) AS active_rentals
+FROM Society s
+LEFT JOIN Building b ON b.sid = s.sid
+LEFT JOIN Flat f ON f.bid = b.bid
+LEFT JOIN Person res ON res.residenceid = f.fid
+LEFT JOIN Complaint c ON c.sid = s.sid
+LEFT JOIN Maintenance m ON m.fid = f.fid
+LEFT JOIN Rental r ON r.fid = f.fid
+GROUP BY s.sid, s.name
+ORDER BY s.name;
+
+
+-- Q39. Month-wise maintenance payment trend (last 12 months)
+SELECT m.month,
+  COUNT(*) AS total_records,
+  SUM(CASE WHEN m.status = 'Paid' THEN m.amount ELSE 0 END) AS collected,
+  SUM(CASE WHEN m.status = 'Unpaid' THEN m.amount ELSE 0 END) AS outstanding,
+  ROUND(100.0 * SUM(CASE WHEN m.status = 'Paid' THEN 1 ELSE 0 END) / COUNT(*), 1)
+    AS collection_pct
+FROM Maintenance m
+GROUP BY m.month
+ORDER BY m.month DESC
+LIMIT 12;
+
+
+-- Q40. Amenity double-booking conflict detector
+SELECT a.name AS amenity, s.name AS society,
+  ab1.pid AS resident1_id, p1.name AS resident1,
+  ab2.pid AS resident2_id, p2.name AS resident2,
+  ab1.startdatetime AS slot1_start, ab1.enddatetime AS slot1_end,
+  ab2.startdatetime AS slot2_start, ab2.enddatetime AS slot2_end
+FROM AmenityBooking ab1
+JOIN AmenityBooking ab2
+  ON ab1.aid = ab2.aid
+  AND ab1.pid < ab2.pid
+  AND ab1.startdatetime < ab2.enddatetime
+  AND ab1.enddatetime > ab2.startdatetime
+JOIN Amenity a ON ab1.aid = a.aid
+JOIN Society s ON a.sid = s.sid
+JOIN Person p1 ON ab1.pid = p1.pid
+JOIN Person p2 ON ab2.pid = p2.pid
+ORDER BY a.name, ab1.startdatetime;
