@@ -135,6 +135,6 @@ This minimizes manual effort, improves accountability, and ensures faster compla
 
 **Dhruv Nagani**
 
-Bachelor of Technology (Computer Science)
+Bachelor of Technology (Information and communication technology)
 
 Dhirubhai Ambani University
